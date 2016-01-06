@@ -3,24 +3,59 @@
   <head>
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.4/angular.min.js"></script>
     <script src="js/platformsController.js"></script>
-    <title>Platforms</title>
+    <title>Platform Bundle Builder</title>
+    <style>
+      table, th , td  {
+        border: 1px solid gray;
+        border-collapse: collapse;
+        padding: 5px;
+      }
+      table tr:nth-child(odd) {
+        background-color: #f1f1f1;
+      }
+      table tr:nth-child(even) {
+        background-color: #ffffff;
+      }
+      label.pending {
+        text-decoration: blink;
+      }
+      label.created {
+        color: green;
+        text-decoration: none;
+      }
+      label.updated {
+        color: blue;
+        text-decoration: none;
+      }
+      label.error {
+        color:red;
+        text-decoration: none;
+      }
+      label.nochange {
+        color: gray;
+      }
+    </style>
   </head>
   <body>
     <div ng-controller="platformController">
+      <!--
       <label>Name:</label>
       <input type="text" ng-model="name" placeholder="Enter name">
       Hello {{name}}!
       <hr>
+      -->
+
+      <h2>Platform Bundle Builder</h2>
+
+      <label>Source:</label><input type="text" data-ng-model="source">
+      <label>Target:</label><input type="text" data-ng-model="target">
+
+      <hr>
 
       <input type="button" value="{{loading ? 'Loading...' : 'Load Platforms'}}" 
-        ng-click="loadPlatforms()">
+        ng-click="loadPlatforms();">
       
       <label># platforms: {{platforms.length}}</label>
-      <br>
-
-      <div ng-repeat="platform in platforms">
-        <label>{{platform._title}}</label>
-      </div>
 
       <input type="button" value="{{loading ? 'Bundling...' : 'Build Bundles'}}" 
         ng-click="buildBundles()">
@@ -32,11 +67,18 @@
         ng-click="saveBundles();">
       <br>
 
-      <div ng-repeat="bundle in bundles">
-        <input type='checkbox' ng-model='bundle.checked'>
-        <label>{{bundle.name}}</label> - 
-        <span ng-repeat="platform in bundle.platforms">{{platform._title}} </span>
-      </div>  
+      <table>
+        <tr data-ng-repeat="bundle in bundles">
+          <td>
+            <input type='checkbox' ng-model='bundle.checked'>
+            <label class="{{bundle.$status}}">{{bundle.name}}</label>
+          </td>
+          <td data-ng-repeat="platform in padArray(bundle.platforms, 4, null) 
+                                track by $index">
+            <label ng-if="platform != null" class="{{platform.$status}}">{{platform._title}}</label>
+          </td>
+        </tr>
+      </table>
 
     </div>
   </body>

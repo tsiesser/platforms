@@ -3,6 +3,7 @@ var app = angular.module('platformsApp', []);
 app.controller('platformController', ['$scope', 'platformService', 
 	function($scope, platformService) {
 		$scope.name = 'Someone';
+		
 		$scope.source = 'uat-comedy';
 		$scope.target = 'testq-nick';
 		$scope.platforms = [ ];
@@ -14,7 +15,7 @@ app.controller('platformController', ['$scope', 'platformService',
 			$scope.loading = true;
 			platformService.loadPlatforms($scope.source)
 				.then(function(response) { 
-					$scope.platforms = response.data.results; 
+					$scope.platforms = response.data.results.filter(function(platform) { return platform._title; }); 
 					$scope.loading = false;
 				});
 		};
@@ -23,18 +24,12 @@ app.controller('platformController', ['$scope', 'platformService',
 
 			var getBundleName = function(pname) {
 				var bname = pname;
-				var i = pname.indexOf('-no-auth');
-				if (i != -1) {
-					bname = pname.substr(0, i);
-				} else {
-					i = pname.indexOf('-noauth');
-					if (i != -1) {
-						bname = pname.substr(0, i);
-					} else {
-						i = pname.indexOf('-auth');
-						if (i != -1) {
-							bname = pname.substr(0, i);
-						}
+				var suffices = [ '-no-auth', '-noauth', ' No Auth', '-auth', ' Auth' ];
+				for (var i = 0; i < suffices.length; i++) {
+					var j = pname.indexOf(suffices[i]);
+					if (j != -1) {
+						bname = pname.substr(0, j);
+						break;
 					}
 				}
 				return bname.substr(0, 1).toUpperCase() + bname.substr(1);
@@ -63,6 +58,12 @@ app.controller('platformController', ['$scope', 'platformService',
 				bundle.checked = checked;
 			}
 		};
+
+		$scope.padArray = function(array, length, item) {
+			var newArray = array.slice(0);
+			while (newArray.length < length) newArray.push(item);
+			return newArray;
+		}
 
 		$scope.saveBundles = function() {
 			var targetPlatforms = {};
@@ -125,14 +126,18 @@ app.controller('platformController', ['$scope', 'platformService',
 					// if bundle already exists on target, make sure it has PlatformType
 					if (!existingBundle.PlatformType) {
 						console.log("update existing bundle: " + bundle.name);
+						bundle.$status = "pending";
 						existingBundle.PlatformType = defaultPlatformType;
 						platformService.saveRecord($scope.target, existingBundle)
 							.then(function(response) {
-								//
+								bundle.$status = "updated";
 							},
 							function(response) {
 								console.log("error updating bundle");
+								bundle.$status = "error";
 							});
+					} else {
+						bundle.$status = "nochange";
 					}
 					// we already have bundle uuid so don't have to wait 
 					// for bundle to be updated before we save platforms
@@ -141,6 +146,7 @@ app.controller('platformController', ['$scope', 'platformService',
 				} else {
 					// if bundle doesn't exist on target, construct bundle record and save
 					console.log("create new bundle: " + bundle.name);
+					bundle.$status = "pending";
 					var newBundle = {
 						"_contentType": "Standard:PlatformBundle", 
 						"_namespace": "authorities", 
@@ -151,11 +157,13 @@ app.controller('platformController', ['$scope', 'platformService',
 					};
 					platformService.saveRecord($scope.target, newBundle)
 						.then(function(response) {
+							bundle.$status = "created";
 							targetBundles[bundle.name] = response.data;
 							saveBundlePlatforms(bundle);
 						},
 						function(response) {
 							console.log("error creating bundle");
+							bundle.$status = "error";
 						});
 				}
 			};
@@ -194,17 +202,22 @@ app.controller('platformController', ['$scope', 'platformService',
 					}
 					if (dirty) {
 						console.log("updating platform: " + platform._title);
+						platform.$status = "pending";
 						platformService.saveRecord($scope.target, existingPlatform)
 							.then(function(response) {
-								//
+								platform.$status = "updated";
 							},
 							function(response) {
 								console.log("error updating platform");
+								platform.$status = "error";
 							});
+					} else {
+						platform.$status = "nochange";
 					}
 				} else {
 					// if platform doesn't exist on target, save source version onto target
 					console.log("creating platform: " + platform._title);
+					platform.$status = "pending";
 					platform.PlatformType = existingBundle.PlatformType;
 					platform.AuthorizationType = { "_globalId": "{TypeName:" + authType + "}" };
 					platform.PlatformBundle = { "_globalId": existingBundle._globalId };
@@ -213,10 +226,11 @@ app.controller('platformController', ['$scope', 'platformService',
 					delete platform._secondaryNamespaces;
 					platformService.saveRecord($scope.target, platform)
 						.then(function(response) {
-							//
+							platform.$status = "created";
 						},
 						function(response) {
 							console.log("error creating platform");
+							platform.$status = "error";
 						});
 				}
 			};
@@ -260,6 +274,11 @@ app.factory('platformService', ['$http',
 					'Content-Type': 'application/json',
 					'X-Processed-By': 'siessert'
 				}};
+
+			if (record.$status) {
+				record = JSON.parse(JSON.stringify(record));
+				delete record.$status;
+			}
 
 			if (record._globalId) {
 				url = 'http://aapi.mtvnservices.com/aapi/v1/sites/' + sitekey +
